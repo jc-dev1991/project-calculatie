@@ -18,6 +18,7 @@ enum View {
   PROJECT_DETAIL = 'Project Detail',
   LIBRARY = 'Bibliotheek',
   CALCULATIONS = 'Calculaties',
+  ARCHIVE = 'Archief',
   SETTINGS = 'Instellingen'
 }
 
@@ -67,6 +68,12 @@ const App: React.FC = () => {
 
   const tabs = [t('general'), t('materials'), t('labor'), t('extras'), t('overview')];
 
+  // Filter projects for the dashboard and active calculation view (exclude archived)
+  const activeProjects = projects.filter(p => p.status !== ProjectStatus.ARCHIVED);
+  
+  // Filter projects for the archive view (only archived)
+  const archivedProjects = projects.filter(p => p.status === ProjectStatus.ARCHIVED);
+
   return (
     <Layout 
       activeProjectTitle={selectedProject?.title} 
@@ -74,6 +81,7 @@ const App: React.FC = () => {
       onNavigateLibrary={() => setCurrentView(View.LIBRARY)}
       onNavigateHome={navigateHome}
       onNavigateCalculations={() => setCurrentView(View.CALCULATIONS)}
+      onNavigateArchive={() => setCurrentView(View.ARCHIVE)}
       onNavigateSettings={() => setCurrentView(View.SETTINGS)}
       onAddProject={handleAddProject}
       onSelectProject={navigateToProject}
@@ -86,7 +94,7 @@ const App: React.FC = () => {
     >
       {currentView === View.DASHBOARD && (
         <ProjectList 
-          projects={projects} 
+          projects={activeProjects} 
           onSelect={(p) => navigateToProject(p.id)}
           onAdd={handleAddProject}
           onDuplicate={duplicateProject}
@@ -106,9 +114,21 @@ const App: React.FC = () => {
 
       {currentView === View.CALCULATIONS && (
         <CalculationsView 
-          projects={projects}
+          projects={activeProjects}
           onSelectProject={navigateToProject}
           onDeleteProject={deleteProject}
+          title="Calculatie Overzicht"
+          subtitle="Beheer alle actieve projecten en offertes"
+        />
+      )}
+
+      {currentView === View.ARCHIVE && (
+        <CalculationsView 
+          projects={archivedProjects}
+          onSelectProject={navigateToProject}
+          onDeleteProject={deleteProject}
+          title="Calculatie Archief"
+          subtitle="Overzicht van gearchiveerde projecten"
         />
       )}
 

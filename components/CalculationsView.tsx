@@ -8,9 +8,17 @@ interface CalculationsViewProps {
   projects: Project[];
   onSelectProject: (id: string) => void;
   onDeleteProject: (id: string) => void;
+  title?: string;
+  subtitle?: string;
 }
 
-const CalculationsView: React.FC<CalculationsViewProps> = ({ projects, onSelectProject, onDeleteProject }) => {
+const CalculationsView: React.FC<CalculationsViewProps> = ({ 
+  projects, 
+  onSelectProject, 
+  onDeleteProject,
+  title = "Calculatie Overzicht",
+  subtitle = "Beheer alle actieve projecten en offertes"
+}) => {
   const [previewProjectId, setPreviewProjectId] = useState<string | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<{ id: string, title: string } | null>(null);
 
@@ -37,8 +45,8 @@ const CalculationsView: React.FC<CalculationsViewProps> = ({ projects, onSelectP
     <div className="max-w-7xl mx-auto px-4 py-8 md:py-12 space-y-8 md:space-y-12 animate-fadeIn">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">Calculatie Archief</h2>
-          <p className="text-slate-500 font-medium mt-1 uppercase tracking-widest text-[10px]">Beheer alle opgeslagen projecten en offertes</p>
+          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">{title}</h2>
+          <p className="text-slate-500 font-medium mt-1 uppercase tracking-widest text-[10px]">{subtitle}</p>
         </div>
       </div>
 
@@ -89,7 +97,7 @@ const CalculationsView: React.FC<CalculationsViewProps> = ({ projects, onSelectP
             {projects.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-8 py-20 text-center">
-                  <p className="text-slate-600 font-black uppercase text-[10px] tracking-[0.3em]">Geen projecten in archief</p>
+                  <p className="text-slate-600 font-black uppercase text-[10px] tracking-[0.3em]">Geen projecten gevonden</p>
                 </td>
               </tr>
             ) : (
