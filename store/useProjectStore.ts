@@ -9,7 +9,10 @@ const SETTINGS_KEY = 'calccraft_settings';
 
 const DEFAULT_SETTINGS: OfferSettings = {
   companyName: 'Mijn Meubelmakerij',
-  companyAddress: 'Werkplaatsstraat 1, 1000 AB Amsterdam',
+  companyStreet: 'Werkplaatsstraat',
+  companyHouseNumber: '1',
+  companyZipCode: '1000 AB',
+  companyCity: 'Amsterdam',
   companyPhone: '020-1234567',
   companyEmail: 'info@meubelmakerij.nl',
   companyIban: 'NL99 BANK 0123 4567 89',
@@ -20,7 +23,9 @@ const DEFAULT_SETTINGS: OfferSettings = {
   termsNotice: 'Op al onze offertes zijn de algemene voorwaarden van toepassing. Geldigheid: 30 dagen.',
   salutation: 'Beste',
   language: 'nl',
-  targetMarginPct: 35
+  targetMarginPct: 35,
+  standardProductionSellRate: 65,
+  standardAssemblySellRate: 55
 };
 
 const SEED_LIBRARY: LibraryMaterial[] = [
@@ -33,6 +38,7 @@ const SEED_LIBRARY: LibraryMaterial[] = [
 const SEED_DATA: Project[] = [
   {
     id: 'demo-1',
+    documentNumber: 1,
     title: 'Eiken Keukenkast Maatwerk',
     clientName: 'Familie Jansen',
     status: ProjectStatus.DRAFT,
@@ -81,15 +87,28 @@ export const useProjectStore = () => {
     const storedTodos = localStorage.getItem(TODOS_KEY);
     const storedSettings = localStorage.getItem(SETTINGS_KEY);
 
-    if (storedProjects) setProjects(JSON.parse(storedProjects));
-    else setProjects(SEED_DATA);
+    if (storedProjects) {
+      const parsed = JSON.parse(storedProjects);
+      // Migratie: geef oude projecten een nummer als ze dat niet hebben
+      const migrated = parsed.map((p: any, idx: number) => ({
+        ...p,
+        documentNumber: p.documentNumber || (parsed.length - idx)
+      }));
+      setProjects(migrated);
+    } else {
+      setProjects(SEED_DATA);
+    }
 
     if (storedLibrary) setLibrary(JSON.parse(storedLibrary));
     else setLibrary(SEED_LIBRARY);
 
     if (storedTodos) setTodos(JSON.parse(storedTodos));
     
-    if (storedSettings) setSettings(JSON.parse(storedSettings));
+    if (storedSettings) {
+      const parsed = JSON.parse(storedSettings);
+      // Merge met defaults om zeker te zijn dat nieuwe velden (straat/huisnummer) bestaan
+      setSettings({ ...DEFAULT_SETTINGS, ...parsed });
+    }
 
     setLoading(false);
   }, []);
@@ -114,10 +133,13 @@ export const useProjectStore = () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
   };
 
-  // Projects CRUD
   const addProject = (title: string, clientName?: string) => {
+    // Zoek het hoogste huidige documentnummer
+    const maxNum = projects.reduce((max, p) => Math.max(max, p.documentNumber || 0), 0);
+    
     const newProject: Project = {
       id: crypto.randomUUID(),
+      documentNumber: maxNum + 1,
       title, clientName,
       status: ProjectStatus.DRAFT, currency: 'EUR', vatRate: 21, notes: '',
       materialMarginEnabled: true, materialMarginPct: 20,
@@ -152,10 +174,17 @@ export const useProjectStore = () => {
   const duplicateProject = (id: string) => {
     const source = projects.find(p => p.id === id);
     if (!source) return;
-    saveProjects([{ ...source, id: crypto.randomUUID(), title: `${source.title} (v2)`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...projects]);
+    const maxNum = projects.reduce((max, p) => Math.max(max, p.documentNumber || 0), 0);
+    saveProjects([{ 
+      ...source, 
+      id: crypto.randomUUID(), 
+      documentNumber: maxNum + 1,
+      title: `${source.title} (kopie)`, 
+      createdAt: new Date().toISOString(), 
+      updatedAt: new Date().toISOString() 
+    }, ...projects]);
   };
 
-  // Library CRUD
   const addLibraryItem = (item: Omit<LibraryMaterial, 'id'>) => {
     saveLibrary([...library, { ...item, id: crypto.randomUUID() }]);
   };
@@ -166,7 +195,6 @@ export const useProjectStore = () => {
 
   const deleteLibraryItem = (id: string) => saveLibrary(library.filter(i => i.id !== id));
 
-  // Todos CRUD
   const addTodo = (text: string) => {
     saveTodos([...todos, { id: crypto.randomUUID(), text, completed: false }]);
   };

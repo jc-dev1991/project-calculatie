@@ -38,26 +38,56 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase block mb-2 tracking-widest">{t('language')}</label>
-              <select 
-                value={localSettings.language}
-                onChange={e => setLocalSettings({...localSettings, language: e.target.value as 'nl' | 'en'})}
-                className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl px-5 py-4 text-white focus:border-blue-500 outline-none font-bold appearance-none cursor-pointer"
-              >
-                <option value="nl">Nederlands</option>
-                <option value="en">English</option>
-              </select>
-            </div>
-            <div>
               <label className="text-[10px] font-black text-slate-500 uppercase block mb-2 tracking-widest">{t('targetMargin')}</label>
-              <input 
-                type="number" 
-                value={localSettings.targetMarginPct}
-                onChange={e => setLocalSettings({...localSettings, targetMarginPct: Number(e.target.value)})}
-                className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl px-5 py-4 text-white focus:border-blue-500 outline-none font-bold"
-              />
+              <div className="relative">
+                <input 
+                  type="number" 
+                  value={localSettings.targetMarginPct}
+                  onChange={e => setLocalSettings({...localSettings, targetMarginPct: Number(e.target.value)})}
+                  className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl px-5 py-4 text-white focus:border-blue-500 outline-none font-bold"
+                />
+                <span className="absolute right-5 top-1/2 -translate-y-1/2 font-black text-slate-500">%</span>
+              </div>
             </div>
           </div>
+        </div>
+
+        {/* Tarieven Sectie */}
+        <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-10 shadow-2xl space-y-8">
+          <div className="flex items-center gap-4">
+            <div className="w-1.5 h-8 bg-emerald-500 rounded-full"></div>
+            <h3 className="text-xl font-black text-white uppercase tracking-wider">Standaard Tarieven (Verkoop)</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase block mb-2 tracking-widest">Productie Tarief (€/u)</label>
+              <div className="relative">
+                <span className="absolute left-5 top-1/2 -translate-y-1/2 font-black text-slate-500">€</span>
+                <input 
+                  type="number" 
+                  value={localSettings.standardProductionSellRate}
+                  onChange={e => setLocalSettings({...localSettings, standardProductionSellRate: Number(e.target.value)})}
+                  className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl pl-10 pr-5 py-4 text-white focus:border-blue-500 outline-none font-bold"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase block mb-2 tracking-widest">Montage Tarief (€/u)</label>
+              <div className="relative">
+                <span className="absolute left-5 top-1/2 -translate-y-1/2 font-black text-slate-500">€</span>
+                <input 
+                  type="number" 
+                  value={localSettings.standardAssemblySellRate}
+                  onChange={e => setLocalSettings({...localSettings, standardAssemblySellRate: Number(e.target.value)})}
+                  className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl pl-10 pr-5 py-4 text-white focus:border-blue-500 outline-none font-bold"
+                />
+              </div>
+            </div>
+          </div>
+          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest italic">
+            Deze tarieven worden automatisch ingevuld wanneer u kiest voor "Vast Verkooptarief" in de uren-tab.
+          </p>
         </div>
 
         {/* Bedrijfsgegevens */}
@@ -77,15 +107,53 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSave }) => {
                 className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl px-5 py-4 text-white focus:border-blue-500 outline-none font-bold"
               />
             </div>
-            <div className="md:col-span-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase block mb-2 tracking-widest">{t('address')}</label>
-              <input 
-                type="text" 
-                value={localSettings.companyAddress}
-                onChange={e => setLocalSettings({...localSettings, companyAddress: e.target.value})}
-                className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl px-5 py-4 text-white focus:border-blue-500 outline-none font-bold"
-              />
+            
+            {/* Adres Grid - Gesplitst */}
+            <div className="grid grid-cols-4 gap-4 md:col-span-2">
+              <div className="col-span-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase block mb-2 tracking-widest">Straat</label>
+                <input 
+                  type="text" 
+                  value={localSettings.companyStreet}
+                  onChange={e => setLocalSettings({...localSettings, companyStreet: e.target.value})}
+                  className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl px-5 py-4 text-white focus:border-blue-500 outline-none font-bold"
+                  placeholder="Straatnaam"
+                />
+              </div>
+              <div className="col-span-1">
+                <label className="text-[10px] font-black text-slate-500 uppercase block mb-2 tracking-widest">Nr</label>
+                <input 
+                  type="text" 
+                  value={localSettings.companyHouseNumber}
+                  onChange={e => setLocalSettings({...localSettings, companyHouseNumber: e.target.value})}
+                  className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl px-5 py-4 text-white focus:border-blue-500 outline-none font-bold"
+                  placeholder="12"
+                />
+              </div>
             </div>
+            <div className="grid grid-cols-4 gap-4 md:col-span-2">
+              <div className="col-span-1">
+                <label className="text-[10px] font-black text-slate-500 uppercase block mb-2 tracking-widest">Postcode</label>
+                <input 
+                  type="text" 
+                  value={localSettings.companyZipCode}
+                  onChange={e => setLocalSettings({...localSettings, companyZipCode: e.target.value})}
+                  className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl px-5 py-4 text-white focus:border-blue-500 outline-none font-bold"
+                  placeholder="1234 AB"
+                />
+              </div>
+              <div className="col-span-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase block mb-2 tracking-widest">Plaats</label>
+                <input 
+                  type="text" 
+                  value={localSettings.companyCity}
+                  onChange={e => setLocalSettings({...localSettings, companyCity: e.target.value})}
+                  className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl px-5 py-4 text-white focus:border-blue-500 outline-none font-bold"
+                  placeholder="Amsterdam"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase block mb-2 tracking-widest">{t('phone')}</label>
               <input 

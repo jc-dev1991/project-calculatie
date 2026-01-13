@@ -34,7 +34,7 @@ const App: React.FC = () => {
 
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>(t('materials'));
+  const [activeTab, setActiveTab] = useState<string>(t('general'));
 
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
@@ -52,13 +52,12 @@ const App: React.FC = () => {
   const navigateToProject = (id: string) => {
     setSelectedProjectId(id);
     setCurrentView(View.PROJECT_DETAIL);
-    setActiveTab(t('materials'));
+    setActiveTab(t('general'));
   };
 
   const handleAddProject = () => {
     const p = addProject('Nieuw Meubel Project');
     navigateToProject(p.id);
-    setActiveTab(t('general'));
   };
 
   const navigateHome = () => {
@@ -68,11 +67,18 @@ const App: React.FC = () => {
 
   const tabs = [t('general'), t('materials'), t('labor'), t('extras'), t('overview')];
 
-  // Filter projects for the dashboard and active calculation view (exclude archived)
   const activeProjects = projects.filter(p => p.status !== ProjectStatus.ARCHIVED);
-  
-  // Filter projects for the archive view (only archived)
   const archivedProjects = projects.filter(p => p.status === ProjectStatus.ARCHIVED);
+
+  // Verkrijg unieke klantnamen uit alle projecten voor de dropdown
+  const allClients = Array.from(new Set(projects.map(p => p.clientName).filter(Boolean))) as string[];
+  const availableClients = allClients.length > 0 ? allClients : ['Nieuwe Klant'];
+
+  const getOfferNumber = (p: Project) => {
+    const year = new Date(p.createdAt).getFullYear();
+    const index = (p.documentNumber || 0).toString().padStart(3, '0');
+    return `${year}-${index}`;
+  };
 
   return (
     <Layout 
@@ -93,61 +99,60 @@ const App: React.FC = () => {
       language={settings.language as Language}
     >
       {currentView === View.DASHBOARD && (
-        <ProjectList 
-          projects={activeProjects} 
-          onSelect={(p) => navigateToProject(p.id)}
-          onAdd={handleAddProject}
-          onDuplicate={duplicateProject}
-          onDelete={deleteProject}
-          language={settings.language as Language}
-        />
+        <div className="max-w-[98vw] mx-auto w-full">
+          <ProjectList 
+            projects={activeProjects} 
+            onSelect={(p) => navigateToProject(p.id)}
+            onAdd={handleAddProject}
+            onDuplicate={duplicateProject}
+            onUpdateStatus={(id, status) => updateProject(id, { status })}
+            language={settings.language as Language}
+          />
+        </div>
       )}
 
       {currentView === View.LIBRARY && (
-        <LibraryTab 
-          library={library}
-          onAdd={addLibraryItem}
-          onUpdate={updateLibraryItem}
-          onDelete={deleteLibraryItem}
-        />
+        <div className="max-w-[98vw] mx-auto w-full">
+          <LibraryTab 
+            library={library}
+            onAdd={addLibraryItem}
+            onUpdate={updateLibraryItem}
+            onDelete={deleteLibraryItem}
+          />
+        </div>
       )}
 
-      {currentView === View.CALCULATIONS && (
-        <CalculationsView 
-          projects={activeProjects}
-          onSelectProject={navigateToProject}
-          onDeleteProject={deleteProject}
-          title="Calculatie Overzicht"
-          subtitle="Beheer alle actieve projecten en offertes"
-        />
-      )}
-
-      {currentView === View.ARCHIVE && (
-        <CalculationsView 
-          projects={archivedProjects}
-          onSelectProject={navigateToProject}
-          onDeleteProject={deleteProject}
-          title="Calculatie Archief"
-          subtitle="Overzicht van gearchiveerde projecten"
-        />
+      {(currentView === View.CALCULATIONS || currentView === View.ARCHIVE) && (
+        <div className="max-w-[98vw] mx-auto w-full">
+          <CalculationsView 
+            projects={currentView === View.CALCULATIONS ? activeProjects : archivedProjects}
+            onSelectProject={navigateToProject}
+            onDeleteProject={deleteProject}
+            title={currentView === View.CALCULATIONS ? "Calculatie Overzicht" : "Calculatie Archief"}
+            subtitle={currentView === View.CALCULATIONS ? "Beheer alle actieve projecten en offertes" : "Overzicht van gearchiveerde projecten"}
+            allowDelete={currentView === View.ARCHIVE}
+          />
+        </div>
       )}
 
       {currentView === View.SETTINGS && (
-        <SettingsView 
-          settings={settings}
-          onSave={saveSettings}
-        />
+        <div className="max-w-5xl mx-auto w-full">
+          <SettingsView 
+            settings={settings}
+            onSave={saveSettings}
+          />
+        </div>
       )}
 
       {currentView === View.PROJECT_DETAIL && selectedProject && (
         <div className="flex-1 flex flex-col bg-slate-950">
           <div className="bg-slate-900 border-b border-slate-800 sticky top-20 z-20 print:hidden shadow-md overflow-x-auto no-scrollbar">
-            <div className="max-w-7xl mx-auto px-2 flex whitespace-nowrap">
+            <div className="max-w-[98vw] mx-auto px-4 flex whitespace-nowrap">
               {tabs.map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-sm font-black uppercase tracking-widest border-b-4 transition-all ${
+                  className={`px-6 md:px-10 py-4 md:py-6 text-[10px] md:text-xs font-black uppercase tracking-widest border-b-4 transition-all ${
                     activeTab === tab 
                       ? 'border-blue-500 text-blue-400 bg-blue-900/10' 
                       : 'border-transparent text-slate-500 hover:text-slate-300'
@@ -159,44 +164,88 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 md:py-10">
+          <div className="flex-1 max-w-[98vw] mx-auto w-full px-4 py-6 md:py-10">
             {activeTab === t('general') && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-10 animate-fadeIn">
-                <div className="bg-slate-900 p-6 md:p-10 rounded-[1.5rem] md:rounded-3xl border border-slate-800 shadow-2xl space-y-6 md:space-y-8">
-                  <h3 className="text-xl md:text-2xl font-black text-white flex items-center gap-3">
-                    <div className="w-1.5 h-6 bg-blue-500 rounded-full"></div>
-                    Project Basis
-                  </h3>
-                  <div className="space-y-4 md:space-y-6">
+                <div className="bg-slate-900 p-6 md:p-10 rounded-[2.5rem] border border-slate-800 shadow-2xl space-y-6 md:space-y-8">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xl md:text-2xl font-black text-white flex items-center gap-3">
+                      <div className="w-1.5 h-6 bg-blue-500 rounded-full"></div>
+                      Project Basis
+                    </h3>
+                    <div className="flex flex-col items-end">
+                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Dossier Nr.</span>
+                      <div className="px-3 py-1 bg-slate-800 rounded-lg border border-slate-700/50">
+                        <span className="text-xs font-black text-blue-400 tracking-wider">
+                          {getOfferNumber(selectedProject)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-6 md:space-y-8">
                     <div>
-                      <label className="block text-[8px] md:text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">{t('title')}</label>
-                      <input type="text" value={selectedProject.title} onChange={(e) => updateProject(selectedProject.id, { title: e.target.value })} className="w-full px-4 py-3 bg-slate-800 border-2 border-slate-700 rounded-xl font-bold text-white focus:border-blue-500 outline-none" />
+                      <label className="block text-[8px] md:text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">{t('title')}</label>
+                      <input 
+                        type="text" 
+                        value={selectedProject.title} 
+                        onChange={(e) => updateProject(selectedProject.id, { title: e.target.value })} 
+                        className="w-full px-6 py-5 bg-slate-800 border-2 border-slate-700 rounded-2xl font-bold text-white focus:border-blue-500 focus:bg-slate-700/30 outline-none transition-all shadow-inner placeholder-slate-600" 
+                      />
                     </div>
                     <div>
-                      <label className="block text-[8px] md:text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">{t('client')}</label>
-                      <input type="text" value={selectedProject.clientName || ''} placeholder="Klantnaam..." onChange={(e) => updateProject(selectedProject.id, { clientName: e.target.value })} className="w-full px-4 py-3 bg-slate-800 border-2 border-slate-700 rounded-xl font-bold text-white focus:border-blue-500 outline-none" />
+                      <label className="block text-[8px] md:text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">{t('client')}</label>
+                      <div className="relative">
+                        <select 
+                          value={selectedProject.clientName || ''} 
+                          onChange={(e) => updateProject(selectedProject.id, { clientName: e.target.value })} 
+                          className="w-full px-6 py-5 bg-slate-800 border-2 border-slate-700 rounded-2xl font-bold text-white focus:border-blue-500 focus:bg-slate-700/30 outline-none transition-all shadow-inner appearance-none cursor-pointer"
+                        >
+                          <option value="" disabled>Selecteer een klant...</option>
+                          {availableClients.map(client => (
+                            <option key={client} value={client} className="bg-slate-900">{client}</option>
+                          ))}
+                          <option value="NEW" className="bg-slate-900 text-blue-400">+ Nieuwe klant toevoegen</option>
+                        </select>
+                        <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
+                        </div>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[8px] md:text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">{t('status')}</label>
-                        <select value={selectedProject.status} onChange={(e) => updateProject(selectedProject.id, { status: e.target.value as ProjectStatus })} className="w-full px-4 py-3 bg-slate-800 border-2 border-slate-700 rounded-xl font-bold text-white focus:border-blue-500 outline-none">
-                          {Object.values(ProjectStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                        <label className="block text-[8px] md:text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">{t('status')}</label>
+                        <select 
+                          value={selectedProject.status} 
+                          onChange={(e) => updateProject(selectedProject.id, { status: e.target.value as ProjectStatus })} 
+                          className="w-full px-6 py-5 bg-slate-800 border-2 border-slate-700 rounded-2xl font-bold text-white focus:border-blue-500 focus:bg-slate-700/30 outline-none transition-all shadow-inner appearance-none cursor-pointer"
+                        >
+                          {Object.values(ProjectStatus).map(s => <option key={s} value={s} className="bg-slate-900">{s}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[8px] md:text-[10px] font-black uppercase text-slate-500 mb-1 tracking-widest">{t('vat')} (%)</label>
-                        <input type="number" value={selectedProject.vatRate} onChange={(e) => updateProject(selectedProject.id, { vatRate: Number(e.target.value) })} className="w-full px-4 py-3 bg-slate-800 border-2 border-slate-700 rounded-xl font-bold text-white focus:border-blue-500 outline-none" />
+                        <label className="block text-[8px] md:text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">{t('vat')} (%)</label>
+                        <input 
+                          type="number" 
+                          value={selectedProject.vatRate} 
+                          onChange={(e) => updateProject(selectedProject.id, { vatRate: Number(e.target.value) })} 
+                          className="w-full px-6 py-5 bg-slate-800 border-2 border-slate-700 rounded-2xl font-bold text-white focus:border-blue-500 focus:bg-slate-700/30 outline-none transition-all shadow-inner" 
+                        />
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-slate-900 p-6 md:p-10 rounded-[1.5rem] md:rounded-3xl border border-slate-800 shadow-2xl space-y-6 md:space-y-8">
+                <div className="bg-slate-900 p-6 md:p-10 rounded-[2.5rem] border border-slate-800 shadow-2xl space-y-6 md:space-y-8">
                   <h3 className="text-xl md:text-2xl font-black text-white flex items-center gap-3">
                     <div className="w-1.5 h-6 bg-amber-500 rounded-full"></div>
                     {t('notes')}
                   </h3>
-                  <textarea value={selectedProject.notes} onChange={(e) => updateProject(selectedProject.id, { notes: e.target.value })} placeholder="Interne details..." className="w-full h-48 md:h-[320px] px-4 md:px-6 py-4 md:py-5 bg-slate-800 border-2 border-slate-700 rounded-xl md:rounded-2xl font-medium text-slate-200 focus:border-amber-500 outline-none resize-none leading-relaxed" />
+                  <textarea 
+                    value={selectedProject.notes} 
+                    onChange={(e) => updateProject(selectedProject.id, { notes: e.target.value })} 
+                    placeholder="Interne details, afspraken of specifieke wensen van de klant..." 
+                    className="w-full h-48 md:h-[400px] px-8 py-6 bg-slate-800 border-2 border-slate-700 rounded-[2rem] font-medium text-slate-200 focus:border-amber-500 focus:bg-slate-700/30 outline-none transition-all resize-none leading-relaxed shadow-inner placeholder-slate-600" 
+                  />
                 </div>
               </div>
             )}

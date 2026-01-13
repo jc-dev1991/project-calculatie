@@ -29,12 +29,16 @@ export enum MaterialUnit {
 export enum LaborType {
   PRODUCTION = 'Productie',
   ASSEMBLY = 'Montage',
-  TRAVEL = 'Reis'
+  TRAVEL = 'Reis',
+  SUBCONTRACTING = 'Inhuur'
 }
 
 export interface OfferSettings {
   companyName: string;
-  companyAddress: string;
+  companyStreet: string;
+  companyHouseNumber: string;
+  companyZipCode: string;
+  companyCity: string;
   companyPhone: string;
   companyEmail: string;
   companyIban: string;
@@ -45,7 +49,9 @@ export interface OfferSettings {
   termsNotice: string;
   salutation: string;
   language: 'nl' | 'en';
-  targetMarginPct: number; // Streefcijfer voor de business
+  targetMarginPct: number;
+  standardProductionSellRate: number;
+  standardAssemblySellRate: number;
 }
 
 export interface MaterialLine {
@@ -61,8 +67,8 @@ export interface MaterialLine {
   length?: number;
   width?: number;
   thickness?: number;
-  libraryItemId?: string; // Links to library item
-  isDirectPurchase?: boolean; // If true, exempt from project-wide margin
+  libraryItemId?: string;
+  isDirectPurchase?: boolean;
 }
 
 export interface LibraryMaterial {
@@ -71,7 +77,6 @@ export interface LibraryMaterial {
   description: string;
   unit: MaterialUnit;
   unitCost: number;
-  // Material dimensions (e.g. standard sheet size)
   length?: number;
   width?: number;
   thickness?: number;
@@ -103,6 +108,7 @@ export interface ExtraCostLine {
 
 export interface Project {
   id: string;
+  documentNumber: number; // Nieuw: volgnummer voor indexering
   title: string;
   clientName?: string;
   status: ProjectStatus;

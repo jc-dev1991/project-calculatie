@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { LibraryMaterial, MaterialCategory, MaterialUnit } from '../types';
 import { formatCurrency } from '../utils/calculations';
 
@@ -41,6 +41,15 @@ const LibraryTab: React.FC<LibraryTabProps> = ({ library, onAdd, onUpdate, onDel
     thickness: 0
   });
 
+  // Calculate counts for badges
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    library.forEach(item => {
+      counts[item.category] = (counts[item.category] || 0) + 1;
+    });
+    return counts;
+  }, [library]);
+
   useEffect(() => {
     const usesAutoM2 = editForm.category === MaterialCategory.PLAATMATERIAAL || 
                         editForm.category === MaterialCategory.MASSIEF;
@@ -55,12 +64,11 @@ const LibraryTab: React.FC<LibraryTabProps> = ({ library, onAdd, onUpdate, onDel
   const handleOpenAdd = () => {
     const category = activeCategory !== 'ALL' ? activeCategory : MaterialCategory.PLAATMATERIAAL;
     
-    // Bepaal de meest logische eenheid voor de geselecteerde categorie
     let defaultUnit = MaterialUnit.PCS;
     if (category === MaterialCategory.PLAATMATERIAAL || category === MaterialCategory.SPUITWERK) {
       defaultUnit = MaterialUnit.M2;
     } else if (category === MaterialCategory.AFWERKING) {
-      defaultUnit = MaterialUnit.M1; // Standaard m1 voor kantenband/fineer
+      defaultUnit = MaterialUnit.M1;
     }
 
     setEditForm({
@@ -133,10 +141,16 @@ const LibraryTab: React.FC<LibraryTabProps> = ({ library, onAdd, onUpdate, onDel
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12 animate-fadeIn pb-32">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h2 className="text-4xl font-black text-white tracking-tight">Materialen Bibliotheek</h2>
-          <p className="text-slate-500 font-medium mt-1 uppercase tracking-widest text-[10px]">Centrale catalogus. Filter op categorie voor snel overzicht.</p>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div className="flex items-center gap-6">
+          <div>
+            <h2 className="text-4xl font-black text-white tracking-tight">Materialen Bibliotheek</h2>
+            <p className="text-slate-500 font-medium mt-1 uppercase tracking-widest text-[10px]">Centrale catalogus. Filter op categorie voor snel overzicht.</p>
+          </div>
+          <div className="hidden sm:flex flex-col items-center justify-center bg-blue-600/10 border border-blue-500/20 px-6 py-3 rounded-3xl">
+             <span className="text-2xl font-black text-blue-400 leading-none">{library.length}</span>
+             <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest mt-1">Totaal Items</span>
+          </div>
         </div>
         <button 
           onClick={handleOpenAdd}
@@ -150,17 +164,23 @@ const LibraryTab: React.FC<LibraryTabProps> = ({ library, onAdd, onUpdate, onDel
       <div className="flex flex-wrap gap-2 p-2 bg-slate-900 border border-slate-800 rounded-3xl overflow-x-auto no-scrollbar">
         <button 
           onClick={() => setActiveCategory('ALL')}
-          className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeCategory === 'ALL' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-slate-800'}`}
+          className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3 ${activeCategory === 'ALL' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-slate-800'}`}
         >
           Alles
+          <span className={`px-2 py-0.5 rounded-md text-[9px] ${activeCategory === 'ALL' ? 'bg-blue-500 text-blue-100' : 'bg-slate-800 text-slate-500'}`}>
+            {library.length}
+          </span>
         </button>
         {Object.values(MaterialCategory).map(cat => (
           <button 
             key={cat}
             onClick={() => setActiveCategory(cat)}
-            className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeCategory === cat ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-slate-800'}`}
+            className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3 whitespace-nowrap ${activeCategory === cat ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-slate-800'}`}
           >
             {cat}
+            <span className={`px-2 py-0.5 rounded-md text-[9px] ${activeCategory === cat ? 'bg-blue-500 text-blue-100' : 'bg-slate-800 text-slate-500'}`}>
+              {categoryCounts[cat] || 0}
+            </span>
           </button>
         ))}
       </div>
@@ -360,47 +380,65 @@ const LibraryTab: React.FC<LibraryTabProps> = ({ library, onAdd, onUpdate, onDel
             Geen producten in deze categorie
           </div>
         )}
-        {filteredLibrary.map(item => (
-          <div 
-            key={item.id}
-            onDoubleClick={() => handleDoubleClick(item)}
-            className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] hover:border-blue-500/50 hover:shadow-2xl hover:shadow-blue-900/10 transition-all cursor-pointer group flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex justify-between items-start mb-6">
-                <div className="p-3 bg-slate-800 rounded-xl text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-all">
-                  <CategoryIcon category={item.category} />
-                </div>
-                <span className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em] bg-slate-800/50 px-2 py-1 rounded">ID: {item.id.slice(0,5)}</span>
-              </div>
-              
-              <h4 className="text-xl font-black text-white group-hover:text-blue-400 transition-colors line-clamp-2 leading-tight mb-2">{item.description}</h4>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{item.category}</p>
-              
-              <div className="mt-8 space-y-3">
-                <div className="flex justify-between items-end border-b border-slate-800 pb-2">
-                  <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Inkoop / {item.unit}</span>
-                  <span className="text-lg font-black text-white">{formatCurrency(item.unitCost)}</span>
-                </div>
-                {item.length && item.width && item.category !== MaterialCategory.SPUITWERK ? (
-                   <div className="flex justify-between items-end border-b border-slate-800 pb-2">
-                    <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Afmeting</span>
-                    <span className="text-xs font-bold text-slate-400">{item.length} x {item.width} x {item.thickness} mm</span>
-                  </div>
-                ) : null}
-              </div>
-            </div>
+        {filteredLibrary.map(item => {
+          // Bereken prijs per m2 als het een plaat is en dimensions bekend zijn
+          let calculatedM2Price = 0;
+          if ((item.category === MaterialCategory.PLAATMATERIAAL || item.category === MaterialCategory.MASSIEF) 
+              && item.length && item.width && item.unit === MaterialUnit.PCS) {
+            const area = (item.length / 1000) * (item.width / 1000);
+            calculatedM2Price = item.unitCost / area;
+          }
 
-            <div className="mt-10 pt-6 border-t border-slate-800 flex items-center justify-between">
-              <span className="text-[9px] font-black text-slate-700 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Double-click to edit</span>
-              <div className="flex gap-2">
-                <button onClick={(e) => { e.stopPropagation(); handleDoubleClick(item); }} className="p-2 text-slate-500 hover:text-white transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                </button>
+          return (
+            <div 
+              key={item.id}
+              onDoubleClick={() => handleDoubleClick(item)}
+              className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] hover:border-blue-500/50 hover:shadow-2xl hover:shadow-blue-900/10 transition-all cursor-pointer group flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex justify-between items-start mb-6">
+                  <div className="p-3 bg-slate-800 rounded-xl text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                    <CategoryIcon category={item.category} />
+                  </div>
+                  <span className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em] bg-slate-800/50 px-2 py-1 rounded">ID: {item.id.slice(0,5)}</span>
+                </div>
+                
+                <h4 className="text-xl font-black text-white group-hover:text-blue-400 transition-colors line-clamp-2 leading-tight mb-2">{item.description}</h4>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{item.category}</p>
+                
+                <div className="mt-8 space-y-3">
+                  <div className="flex justify-between items-end border-b border-slate-800 pb-2">
+                    <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Inkoop / {item.unit}</span>
+                    <span className="text-lg font-black text-white">{formatCurrency(item.unitCost)}</span>
+                  </div>
+                  
+                  {calculatedM2Price > 0 && (
+                    <div className="flex justify-between items-end border-b border-slate-800 pb-2">
+                      <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Prijs p/m²</span>
+                      <span className="text-xs font-bold text-emerald-500">{formatCurrency(calculatedM2Price)}</span>
+                    </div>
+                  )}
+
+                  {item.length && item.width && item.category !== MaterialCategory.SPUITWERK ? (
+                     <div className="flex flex-col gap-1 border-b border-slate-800 pb-2">
+                      <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Afmeting</span>
+                      <span className="text-sm font-black text-slate-300">{item.length} x {item.width} {item.thickness ? `x ${item.thickness}` : ''} mm</span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="mt-10 pt-6 border-t border-slate-800 flex items-center justify-between">
+                <span className="text-[9px] font-black text-slate-700 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Double-click to edit</span>
+                <div className="flex gap-2">
+                  <button onClick={(e) => { e.stopPropagation(); handleDoubleClick(item); }} className="p-2 text-slate-500 hover:text-white transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
