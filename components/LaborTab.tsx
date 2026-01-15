@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Project, LaborLine, LaborType } from '../types';
 import { calculateLaborLine, formatCurrency } from '../utils/calculations';
@@ -15,21 +14,31 @@ const LaborTab: React.FC<LaborTabProps> = ({ project, onUpdate }) => {
   const getStandardSellRate = (type: LaborType) => {
     if (type === LaborType.PRODUCTION) return settings.standardProductionSellRate;
     if (type === LaborType.ASSEMBLY) return settings.standardAssemblySellRate;
-    return 0;
+    return 50; // Fallback waarde, nooit 0
   };
 
   const updateLine = (id: string, updates: Partial<LaborLine>) => {
     const labor = project.labor.map(l => {
       if (l.id !== id) return l;
+      
       const newLine = { ...l, ...updates };
-      if (updates.type && newLine.sellRateEnabled) {
+      
+      // FIX: Als we wisselen van type, pak het nieuwe standaardtarief
+      if (updates.type) {
         newLine.sellRate = getStandardSellRate(newLine.type);
       }
+      
+      // FIX: Als we het vinkje AAN zetten, pak standaardtarief
       if (updates.sellRateEnabled === true) {
         newLine.sellRate = getStandardSellRate(newLine.type);
-      }
+      } 
+      
+      // FIX: Als we het vinkje UIT zetten, DOE NIKS met de sellRate (laat de oude waarde staan).
+      // Hier stond eerst 'sellRate = 0', dat veroorzaakte de fout in de database!
+      
       return newLine;
     });
+    
     onUpdate({ labor });
   };
 
@@ -42,8 +51,8 @@ const LaborTab: React.FC<LaborTabProps> = ({ project, onUpdate }) => {
           type: LaborType.PRODUCTION, 
           hours: 0, 
           costRate: 45, 
-          sellRateEnabled: false, 
-          sellRate: settings.standardProductionSellRate, 
+          sellRateEnabled: true, // Standaard AAN
+          sellRate: settings.standardProductionSellRate || 65, // Nooit 0 of undefined
           travelBillable: true 
         }
       ] 
@@ -52,8 +61,12 @@ const LaborTab: React.FC<LaborTabProps> = ({ project, onUpdate }) => {
 
   const deleteLine = (id: string) => onUpdate({ labor: project.labor.filter(l => l.id !== id) });
 
+  // Haal de project marge op voor de weergave
+  const projectMargin = (project as any).generalMargin || 0;
+
   return (
     <div className="space-y-6 animate-fadeIn">
+      {/* Desktop View */}
       <div className="hidden md:block bg-slate-900 rounded-[2rem] border border-slate-800 shadow-2xl overflow-hidden">
         <div className="px-8 py-6 border-b border-slate-800 bg-slate-800/20">
           <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Urenregistratie & Calculatie</h3>
@@ -71,7 +84,9 @@ const LaborTab: React.FC<LaborTabProps> = ({ project, onUpdate }) => {
           </thead>
           <tbody className="divide-y divide-slate-800">
             {project.labor.map(line => {
-              const { laborSales } = calculateLaborLine(line, 0, false);
+              // Berekening voor weergave
+              const { laborSales } = calculateLaborLine(line, projectMargin, false);
+              
               return (
                 <tr key={line.id} className="hover:bg-slate-800/30 group transition-all">
                   <td className="px-8 py-6">
@@ -93,11 +108,17 @@ const LaborTab: React.FC<LaborTabProps> = ({ project, onUpdate }) => {
                     </div>
                   </td>
                   <td className="px-8 py-6">
-                    <div className="flex items-center justify-center gap-4 bg-slate-950/50 p-2 rounded-2xl border border-slate-800/50">
-                      <input type="checkbox" checked={line.sellRateEnabled} onChange={(e) => updateLine(line.id, { sellRateEnabled: e.target.checked })} className="w-6 h-6 rounded-lg border-slate-700 bg-slate-800 text-blue-500" />
+                    <div className={`flex items-center justify-center gap-4 p-2 rounded-2xl border transition-colors ${line.sellRateEnabled ? 'bg-slate-950/50 border-slate-800/50' : 'bg-slate-900/30 border-transparent opacity-75'}`}>
+                      <input type="checkbox" checked={line.sellRateEnabled} onChange={(e) => updateLine(line.id, { sellRateEnabled: e.target.checked })} className="w-6 h-6 rounded-lg border-slate-700 bg-slate-800 text-blue-500 cursor-pointer" />
                       <div className="relative flex-1">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 font-bold text-xs">€</span>
-                        <input disabled={!line.sellRateEnabled} type="number" value={line.sellRate} onChange={(e) => updateLine(line.id, { sellRate: Number(e.target.value) })} className="w-full pl-7 pr-4 py-3 bg-slate-800 border-2 border-slate-700 rounded-xl text-sm font-black text-white disabled:opacity-20" />
+                        <span className={`absolute left-3 top-1/2 -translate-y-1/2 font-bold text-xs ${line.sellRateEnabled ? 'text-slate-600' : 'text-slate-700'}`}>€</span>
+                        <input 
+                          disabled={!line.sellRateEnabled} 
+                          type="number" 
+                          value={line.sellRate} 
+                          onChange={(e) => updateLine(line.id, { sellRate: Number(e.target.value) })} 
+                          className="w-full pl-7 pr-4 py-3 bg-slate-800 border-2 border-slate-700 rounded-xl text-sm font-black text-white disabled:text-slate-500 disabled:border-slate-800 disabled:bg-slate-800/50 transition-colors" 
+                        />
                       </div>
                     </div>
                   </td>
@@ -110,10 +131,11 @@ const LaborTab: React.FC<LaborTabProps> = ({ project, onUpdate }) => {
         </table>
       </div>
 
+      {/* Mobile View */}
       <div className="md:hidden space-y-4">
         {project.labor.length === 0 && <div className="py-12 text-center text-slate-600 font-black uppercase text-[10px]">Geen urenregels</div>}
         {project.labor.map(line => {
-          const { laborSales } = calculateLaborLine(line, 0, false);
+          const { laborSales } = calculateLaborLine(line, projectMargin, false);
           return (
             <div key={line.id} className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] space-y-4 shadow-xl">
               <div className="flex justify-between items-center">

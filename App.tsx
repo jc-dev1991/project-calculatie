@@ -1,5 +1,9 @@
+import React, { useState, useEffect } from 'react';
+import { onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore'; 
+import { auth, db } from './firebase'; 
+import Login from './components/Login';
 
-import React, { useState } from 'react';
 import Layout from './components/Layout';
 import ProjectList from './components/ProjectList';
 import MaterialTab from './components/MaterialTab';
@@ -9,9 +13,14 @@ import OverviewTab from './components/OverviewTab';
 import LibraryTab from './components/LibraryTab';
 import CalculationsView from './components/CalculationsView';
 import SettingsView from './components/SettingsView';
+// --- NIEUWE IMPORTS ---
+import OrderListTab from './components/OrderListTab';
+import QuoteTab from './components/QuoteTab';
+// ---------------------
 import { useProjectStore } from './store/useProjectStore';
 import { Project, ProjectStatus } from './types';
 import { useT, Language } from './utils/translations';
+import { calculateProjectTotals } from './utils/calculations';
 
 enum View {
   DASHBOARD = 'Dashboard',
@@ -22,7 +31,53 @@ enum View {
   SETTINGS = 'Instellingen'
 }
 
+interface PlannerProject {
+  id: string;
+  clientName: string;
+  title: string;
+  status?: string;
+}
+
 const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Database State
+  const [plannerProjects, setPlannerProjects] = useState<PlannerProject[]>([]);
+  const [linkedProjectId, setLinkedProjectId] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<string>(''); 
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // --- 1. DATA OPHALEN UIT PROJECT MANAGER ---
+  useEffect(() => {
+    if (!user) return;
+
+    const qProjects = query(collection(db, 'projects'), orderBy('updatedAt', 'desc')); 
+    const unsubProjects = onSnapshot(qProjects, (snapshot) => {
+      const projs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          clientName: data.clientName || 'Onbekend',
+          title: data.title || 'Naamloos project',
+          status: data.status
+        };
+      }) as PlannerProject[];
+      setPlannerProjects(projs);
+    });
+
+    return () => {
+      unsubProjects();
+    };
+  }, [user]);
+
   const { 
     projects, library, todos, settings, loading, 
     addProject, updateProject, deleteProject, duplicateProject,
@@ -38,16 +93,121 @@ const App: React.FC = () => {
 
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-black text-white uppercase tracking-[0.2em] text-[10px]">Systeem Starten...</p>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (selectedProject?.externalProjectId) {
+      setLinkedProjectId(selectedProject.externalProjectId);
+      
+      const linkedName = plannerProjects.find(p => p.id === selectedProject.externalProjectId)?.title;
+      if (linkedName) {
+        setSyncStatus(`Gekoppeld: ${linkedName}`);
+      } else {
+        setSyncStatus('Gekoppeld aan project (laden...)');
+      }
+    } else {
+      setLinkedProjectId(null);
+      setSyncStatus('');
+    }
+  }, [selectedProject?.id, selectedProject?.externalProjectId, plannerProjects]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Fout bij uitloggen:", error);
+    }
+  };
+
+  // --- 2. DE SYNC FUNCTIE ---
+  const syncToPlanner = async (externalProjectId: string, projectData: Project | undefined) => {
+    if (!projectData) return;
+
+    try {
+      const projectRef = doc(db, 'projects', externalProjectId);
+      
+      // Gebruik de centrale rekenmachine
+      const totals = calculateProjectTotals(projectData);
+
+      // Tel de uren voor de planning
+      const laborList = projectData.labor || [];
+      let prodHours = 0;
+      let installHours = 0;
+      let travelHours = 0;
+      let hiredHours = 0;
+
+      laborList.forEach((item) => {
+        const hrs = Number(item.hours || 0);
+        
+        switch (item.type) {
+          case 'Productie': prodHours += hrs; break;
+          case 'Montage':   installHours += hrs; break;
+          case 'Reis':      travelHours += hrs; break;
+          case 'Inhuur':    hiredHours += hrs; break;
+          default:          prodHours += hrs; 
+        }
+      });
+
+      const totalHours = prodHours + installHours + travelHours + hiredHours;
+
+      // Update Database
+      await updateDoc(projectRef, {
+        calculationData: {
+          lastUpdated: new Date(),
+          totalPrice: totals.totalIncVat,
+          subTotal: totals.subtotalSales,
+          materialCost: totals.materialsSalesTotal, 
+          laborCost: totals.laborSalesTotal, 
+          
+          hoursProduction: prodHours,
+          hoursInstallation: installHours,
+          hoursTravel: travelHours,
+          hoursHired: hiredHours,
+          totalHours: totalHours,
+          
+          status: projectData.status
+        },
+      });
+      
+      console.log(`Sync Geslaagd! Prijs: €${totals.totalIncVat}, Arbeid Verkoop: €${totals.laborSalesTotal}`);
+    } catch (error) {
+      console.error("Fout bij syncen naar planner:", error);
+    }
+  };
+
+  // --- 3. PROJECT KOPPELEN ---
+  const handleProjectLink = (localProjectId: string, externalProjectId: string) => {
+    const targetProject = plannerProjects.find(p => p.id === externalProjectId);
+    
+    if (targetProject) {
+      setLinkedProjectId(externalProjectId);
+      setSyncStatus(`Gekoppeld aan: ${targetProject.title}`);
+      
+      updateProject(localProjectId, { 
+        clientName: targetProject.clientName,
+        externalProjectId: externalProjectId 
+      });
+
+      syncToPlanner(externalProjectId, selectedProject);
+    }
+  };
+
+  const navigateToPlanning = () => {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const localUrl = 'http://localhost:3001'; 
+    const liveUrl = 'https://jouw-live-app.vercel.app'; 
+    const targetUrl = isLocal ? localUrl : liveUrl;
+    window.open(targetUrl, '_blank');
+  };
+
+  const getOfferNumber = (p: Project) => {
+    const dateStr = p.createdAt || new Date().toISOString();
+    const year = new Date(dateStr).getFullYear();
+    const index = (p.documentNumber || 0).toString().padStart(3, '0');
+    return `${year}-${index}`;
+  };
+
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white text-[10px] font-black uppercase tracking-widest">Verbinding controleren...</div>;
+  if (!user) return <Login />;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white text-[10px] font-black uppercase tracking-widest">Systeem Laden...</div>;
 
   const navigateToProject = (id: string) => {
     setSelectedProjectId(id);
@@ -56,7 +216,7 @@ const App: React.FC = () => {
   };
 
   const handleAddProject = () => {
-    const p = addProject('Nieuw Meubel Project');
+    const p = addProject('Nieuwe Calculatie');
     navigateToProject(p.id);
   };
 
@@ -65,20 +225,13 @@ const App: React.FC = () => {
     setCurrentView(View.DASHBOARD);
   };
 
-  const tabs = [t('general'), t('materials'), t('labor'), t('extras'), t('overview')];
-
+  // --- NIEUW: TABS UITGEBREID MET BESTELLIJST EN OFFERTE ---
+  const tabs = [t('general'), t('materials'), t('labor'), t('extras'), 'Bestellijst', 'Offerte', t('overview')];
+  
   const activeProjects = projects.filter(p => p.status !== ProjectStatus.ARCHIVED);
   const archivedProjects = projects.filter(p => p.status === ProjectStatus.ARCHIVED);
 
-  // Verkrijg unieke klantnamen uit alle projecten voor de dropdown
-  const allClients = Array.from(new Set(projects.map(p => p.clientName).filter(Boolean))) as string[];
-  const availableClients = allClients.length > 0 ? allClients : ['Nieuwe Klant'];
-
-  const getOfferNumber = (p: Project) => {
-    const year = new Date(p.createdAt).getFullYear();
-    const index = (p.documentNumber || 0).toString().padStart(3, '0');
-    return `${year}-${index}`;
-  };
+  const activePlannerProjects = plannerProjects.filter(p => p.status !== 'afgerond' && !p.status?.includes('archief'));
 
   return (
     <Layout 
@@ -89,6 +242,8 @@ const App: React.FC = () => {
       onNavigateCalculations={() => setCurrentView(View.CALCULATIONS)}
       onNavigateArchive={() => setCurrentView(View.ARCHIVE)}
       onNavigateSettings={() => setCurrentView(View.SETTINGS)}
+      onNavigateToPlanning={navigateToPlanning}
+      onLogout={handleLogout}
       onAddProject={handleAddProject}
       onSelectProject={navigateToProject}
       projects={projects}
@@ -113,12 +268,7 @@ const App: React.FC = () => {
 
       {currentView === View.LIBRARY && (
         <div className="max-w-[98vw] mx-auto w-full">
-          <LibraryTab 
-            library={library}
-            onAdd={addLibraryItem}
-            onUpdate={updateLibraryItem}
-            onDelete={deleteLibraryItem}
-          />
+          <LibraryTab library={library} onAdd={addLibraryItem} onUpdate={updateLibraryItem} onDelete={deleteLibraryItem} />
         </div>
       )}
 
@@ -137,10 +287,7 @@ const App: React.FC = () => {
 
       {currentView === View.SETTINGS && (
         <div className="max-w-5xl mx-auto w-full">
-          <SettingsView 
-            settings={settings}
-            onSave={saveSettings}
-          />
+          <SettingsView settings={settings} onSave={saveSettings} />
         </div>
       )}
 
@@ -153,9 +300,7 @@ const App: React.FC = () => {
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={`px-6 md:px-10 py-4 md:py-6 text-[10px] md:text-xs font-black uppercase tracking-widest border-b-4 transition-all ${
-                    activeTab === tab 
-                      ? 'border-blue-500 text-blue-400 bg-blue-900/10' 
-                      : 'border-transparent text-slate-500 hover:text-slate-300'
+                    activeTab === tab ? 'border-blue-500 text-blue-400 bg-blue-900/10' : 'border-transparent text-slate-500 hover:text-slate-300'
                   }`}
                 >
                   {tab}
@@ -182,6 +327,14 @@ const App: React.FC = () => {
                       </div>
                     </div>
                   </div>
+
+                  {syncStatus && (
+                    <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-xl flex items-center gap-3">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                      <span className="text-[10px] font-bold text-blue-300 uppercase tracking-wider">{syncStatus}</span>
+                    </div>
+                  )}
+
                   <div className="space-y-6 md:space-y-8">
                     <div>
                       <label className="block text-[8px] md:text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">{t('title')}</label>
@@ -192,25 +345,32 @@ const App: React.FC = () => {
                         className="w-full px-6 py-5 bg-slate-800 border-2 border-slate-700 rounded-2xl font-bold text-white focus:border-blue-500 focus:bg-slate-700/30 outline-none transition-all shadow-inner placeholder-slate-600" 
                       />
                     </div>
+                    
                     <div>
-                      <label className="block text-[8px] md:text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">{t('client')}</label>
+                      <label className="block text-[8px] md:text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">Koppel aan Project</label>
                       <div className="relative">
                         <select 
-                          value={selectedProject.clientName || ''} 
-                          onChange={(e) => updateProject(selectedProject.id, { clientName: e.target.value })} 
+                          value={linkedProjectId || ''} 
+                          onChange={(e) => handleProjectLink(selectedProject.id, e.target.value)} 
                           className="w-full px-6 py-5 bg-slate-800 border-2 border-slate-700 rounded-2xl font-bold text-white focus:border-blue-500 focus:bg-slate-700/30 outline-none transition-all shadow-inner appearance-none cursor-pointer"
                         >
-                          <option value="" disabled>Selecteer een klant...</option>
-                          {availableClients.map(client => (
-                            <option key={client} value={client} className="bg-slate-900">{client}</option>
+                          <option value="" disabled>Selecteer een project uit de Planner...</option>
+                          {activePlannerProjects.length === 0 && <option disabled>Geen actieve projecten gevonden</option>}
+                          {activePlannerProjects.map(proj => (
+                            <option key={proj.id} value={proj.id} className="bg-slate-900">
+                              {proj.title} ({proj.clientName})
+                            </option>
                           ))}
-                          <option value="NEW" className="bg-slate-900 text-blue-400">+ Nieuwe klant toevoegen</option>
                         </select>
                         <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
                         </div>
                       </div>
+                      <p className="mt-2 text-[9px] text-slate-500">
+                        * Selecteer het project waar de uren en kosten naar verzonden moeten worden.
+                      </p>
                     </div>
+
                     <div className="grid grid-cols-2 gap-6">
                       <div>
                         <label className="block text-[8px] md:text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">{t('status')}</label>
@@ -250,9 +410,47 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {activeTab === t('materials') && <MaterialTab project={selectedProject} library={library} onUpdate={(updates) => updateProject(selectedProject.id, updates)} />}
-            {activeTab === t('labor') && <LaborTab project={selectedProject} onUpdate={(updates) => updateProject(selectedProject.id, updates)} />}
+            {activeTab === t('materials') && (
+              <MaterialTab 
+                project={selectedProject} 
+                library={library} 
+                onUpdate={(updates) => {
+                  updateProject(selectedProject.id, updates);
+                  if (linkedProjectId) {
+                    const updatedProj = { ...selectedProject, ...updates };
+                    syncToPlanner(linkedProjectId, updatedProj);
+                  }
+                }} 
+              />
+            )}
+            
+            {activeTab === t('labor') && (
+              <LaborTab 
+                project={selectedProject} 
+                onUpdate={(updates) => {
+                  updateProject(selectedProject.id, updates);
+                  if (linkedProjectId) {
+                    const updatedProj = { ...selectedProject, ...updates };
+                    syncToPlanner(linkedProjectId, updatedProj);
+                  }
+                }} 
+              />
+            )}
+            
             {activeTab === t('extras') && <ExtrasTab project={selectedProject} onUpdate={(updates) => updateProject(selectedProject.id, updates)} />}
+            
+            {/* --- NIEUW: BESTELLIJST EN OFFERTE TABS --- */}
+            {activeTab === 'Bestellijst' && (
+              <OrderListTab project={selectedProject} />
+            )}
+
+            {activeTab === 'Offerte' && (
+              <QuoteTab 
+                project={selectedProject} 
+                onUpdate={(updates) => updateProject(selectedProject.id, updates)} 
+              />
+            )}
+            
             {activeTab === t('overview') && <OverviewTab project={selectedProject} />}
           </div>
         </div>

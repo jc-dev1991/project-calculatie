@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Project, ProjectStatus } from '../types';
 import { calculateProjectTotals, formatCurrency, formatNumber } from '../utils/calculations';
@@ -48,26 +47,36 @@ const CalculationsView: React.FC<CalculationsViewProps> = ({
   };
 
   const getOfferNumber = (project: Project) => {
-    const year = new Date(project.createdAt).getFullYear();
-    const index = project.documentNumber.toString().padStart(3, '0');
+    // Veiligere datum check
+    const dateStr = project.createdAt || new Date().toISOString();
+    const year = new Date(dateStr).getFullYear();
+    const index = (project.documentNumber || 0).toString().padStart(3, '0');
     return `${year}-${index}`;
   };
 
-  // Filter Logic
+  // Filter & Sorteer Logic
   const filteredProjects = useMemo(() => {
-    return projects.filter(project => {
-      const searchLower = searchTerm.toLowerCase();
-      const offerNumber = getOfferNumber(project);
-      
-      const matchesSearch = 
-        project.title.toLowerCase().includes(searchLower) ||
-        (project.clientName || '').toLowerCase().includes(searchLower) ||
-        offerNumber.includes(searchLower);
+    return projects
+      // 1. Eerst sorteren op datum (Nieuwste boven)
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateB - dateA; // B - A zorgt voor aflopende volgorde (nieuwste eerst)
+      })
+      // 2. Daarna filteren
+      .filter(project => {
+        const searchLower = searchTerm.toLowerCase();
+        const offerNumber = getOfferNumber(project);
+        
+        const matchesSearch = 
+          project.title.toLowerCase().includes(searchLower) ||
+          (project.clientName || '').toLowerCase().includes(searchLower) ||
+          offerNumber.includes(searchLower);
 
-      const matchesStatus = statusFilter === 'ALL' || project.status === statusFilter;
+        const matchesStatus = statusFilter === 'ALL' || project.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
-    });
+        return matchesSearch && matchesStatus;
+      });
   }, [projects, searchTerm, statusFilter]);
 
   return (

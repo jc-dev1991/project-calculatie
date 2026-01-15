@@ -1,4 +1,3 @@
-
 export enum ProjectStatus {
   DRAFT = 'Concept',
   SENT = 'Verzonden',
@@ -56,6 +55,7 @@ export interface OfferSettings {
 
 export interface MaterialLine {
   id: string;
+  name?: string; // Toegevoegd voor compatibiliteit met nieuwe modules
   category: MaterialCategory;
   description: string;
   unit: MaterialUnit;
@@ -80,6 +80,7 @@ export interface LibraryMaterial {
   length?: number;
   width?: number;
   thickness?: number;
+  libraryItemId?: string;
 }
 
 export interface TodoItem {
@@ -108,9 +109,13 @@ export interface ExtraCostLine {
 
 export interface Project {
   id: string;
-  documentNumber: number; // Nieuw: volgnummer voor indexering
+  documentNumber: number;
   title: string;
   clientName?: string;
+  
+  // Koppeling met de Planner
+  externalProjectId?: string; 
+
   status: ProjectStatus;
   currency: string;
   vatRate: number;
@@ -121,6 +126,13 @@ export interface Project {
   
   laborMarginEnabled: boolean;
   laborMarginPct: number;
+
+  // --- NIEUW: Offerte Specifieke Velden ---
+  quoteIntro?: string;
+  quoteClosing?: string;
+  quoteValidityDays?: number;
+  quoteDate?: string;
+  // ----------------------------------------
 
   materials: MaterialLine[];
   labor: LaborLine[];

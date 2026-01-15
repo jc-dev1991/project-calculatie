@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@media print {
+  /* 1. PRESTATIE BOOSTERS (Lost het trage laden op) */
+  * {
+    transition: none !important;
+    animation: none !important;
+    box-shadow: none !important;   /* Verwijdert zware schaduwen */
+    text-shadow: none !important;
+  }
+
+  /* 2. VERBERG ALLES */
+  body * {
+    visibility: hidden;
+  }
+
+  /* 3. MAAK ALLEEN HET PAPIER ZICHTBAAR */
+  /* We gebruiken een speciale class '.print-section' die we aan het A4'tje geven */
+  .print-section, .print-section * {
+    visibility: visible;
+  }
+
+  /* 4. POSITIE EN OPMAAK PAPIER */
+  .print-section {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: white !important; /* Forceer wit tegen zwarte balken */
+    z-index: 9999;
+  }
+
+  /* 5. VERWIJDER RESTANTEN */
+  /* Verberg expliciet alle navigatie en vaste elementen */
+  nav, header, aside, .sticky, .fixed, button {
+    display: none !important;
+  }
+
+  /* Forceer kleuren (zodat blauw ook echt blauw is) */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Zorg dat input velden eruit zien als tekst */
+  textarea, input {
+    border: none !important;
+    background: transparent !important;
+    resize: none !important;
+    padding: 0 !important;
+  }
+}
